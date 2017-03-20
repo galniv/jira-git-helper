@@ -16,6 +16,18 @@ var prefs = new preferences('jira-git-helper', {
   changelogFilenames: {}
 });
 
+// The first time the utility is run, ask for the JIRA hostname.
+promise = Promise.try(() => {
+  if (prefs.jiraHost) { return; }
+
+  return inquirer.prompt({ name: 'host', message: 'What is your JIRA hostname? (e.g. company.atlassian.net)' }).then((answer) => {
+    prefs.jiraHost = answer.host;
+  });
+});
+
+var jiraClient;
+
+// Get the user's credentials.
 var credentialPrompt = [
   {
     name: 'email',
@@ -32,17 +44,6 @@ if (prefs.email) {
   credentialPrompt[0].default = prefs.email;
 }
 
-// The first time the utility is run, ask for the JIRA hostname.
-promise = Promise.try(() => {
-  if (prefs.jiraHost) { return; }
-
-  return inquirer.prompt({ name: 'host', message: 'What is your JIRA hostname? (e.g. company.atlassian.net)' }).then((answer) => {
-    prefs.jiraHost = answer.host;
-  });
-});
-
-var jiraClient;
-// Get the user's credentials.
 promise = promise.then(() => {
   return inquirer.prompt(credentialPrompt);
 });
@@ -161,25 +162,25 @@ promise = promise.then((issueChoices) => {
 });
 
 // Offer to transition New ticket to In Progress.
-promise = promise.then((chosenTicket) => {
-  if (chosenTicket.issue.status !== 'New') { return chosenTicket.issue; }
+promise = promise.then((selectedTicket) => {
+  if (selectedTicket.issue.status !== 'New') { return selectedTicket.issue; }
   return inquirer.prompt({ type: 'confirm', name: 'moveTicket', message: 'Transition ticket status to In Progress?', default: true }).then((answer) => {
-    if (!answer.moveTicket) { return chosenTicket.issue; }
+    if (!answer.moveTicket) { return selectedTicket.issue; }
 
     return Promise.fromCallback((callback) => {
-      jiraClient.issue.transitionIssue({ issueId: chosenTicket.issue.id, transition: { id: 11 } }, (err, result) => {
+      jiraClient.issue.transitionIssue({ issueId: selectedTicket.issue.id, transition: { id: 11 } }, (err, result) => {
         if (err) { return callback(err); }
 
         console.log('\t...done!');
-        callback(null, chosenTicket.issue);
+        callback(null, selectedTicket.issue);
       })
     });
   });
 });
 
 // Choose branch name, ask to move to master branch, pull latest.
-promise = promise.then((chosenTicket) => {
-  return inquirer.prompt({ type: 'input', name: 'branchName', message: 'What would you like to name the branch?', default: chosenTicket.key.toLowerCase() + '-' + _.kebabCase(chosenTicket.summary) }).then((branchNameAnswer) => {
+promise = promise.then((selectedTicket) => {
+  return inquirer.prompt({ type: 'input', name: 'branchName', message: 'What would you like to name the branch?', default: selectedTicket.key.toLowerCase() + '-' + _.kebabCase(selectedTicket.summary) }).then((branchNameAnswer) => {
     gitPromise = Promise.fromCallback((callback) => {
       exec('git status', (err, stdout, stderr) => {
         console.log(stdout.startsWith('On branch master'), stdout);
@@ -204,7 +205,7 @@ promise = promise.then((chosenTicket) => {
             console.log('done!');
           }
           exec('git checkout -b ' + branchNameAnswer.branchName);
-          callback(null, chosenTicket);
+          callback(null, selectedTicket);
         });
       });
     });
@@ -213,7 +214,7 @@ promise = promise.then((chosenTicket) => {
 });
 
 // Handle changelog entry.
-promise = promise.then((chosenTicket) => {
+promise = promise.then((selectedTicket) => {
   return inquirer.prompt({ type: 'confirm', name: 'addChangelog', message: 'Add changelog entry? (attempt to add an entry under the latest version header in the file)', default: prefs.addChangelogEntry }).then((answer) => {
     if (!answer.addChangelog) {
       // If you chose to avoid adding a changelog entry, remember that as the default answer for next time.
@@ -221,7 +222,7 @@ promise = promise.then((chosenTicket) => {
       return;
     }
 
-    return inquirer.prompt({ type: 'input', name: 'text', message: 'What should the entry say?', default: '* ticket ' + chosenTicket.key.toUpperCase() + ': ' + chosenTicket.summary }).then((changelogEntry) => {
+    return inquirer.prompt({ type: 'input', name: 'text', message: 'What should the entry say?', default: '* ticket ' + selectedTicket.key.toUpperCase() + ': ' + selectedTicket.summary }).then((changelogEntry) => {
       let filenamePrompt = { type: 'input', name: 'logFilename', message: 'What is the changelog file name?' };
       
       const currentDirectoryPath = path.resolve();
