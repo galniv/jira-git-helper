@@ -10,7 +10,7 @@
   "dependencies": {
     "bluebird": "3.4.7",
     "inquirer": "3.0.1",
-    "jira-connector": "https://github.com/floralvikings/jira-connector.git#1eea0478ed46762448b219e59a43096cf94935cf",
+    "jira-connector": "https://github.com/galniv/jira-connector.git#232874c10258f04a14161b9d72f7e406e647a2c5",
     "lodash": "4.17.4",
     "preferences": "0.2.1",
     "prompt": "1.0.0"
