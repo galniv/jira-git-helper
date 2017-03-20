@@ -1,0 +1,18 @@
+{
+  "name": "jira-git-helper",
+  "version": "1.0.0",
+  "description": "A simple helper CLI for working with JIRA tickets in combination with git.",
+  "main": "index.js",
+  "bin": {
+    "jira-helper": "./index.js"
+  },
+  "author": "Gal Niv <gal.niv@gmail.com>",
+  "dependencies": {
+    "bluebird": "3.4.7",
+    "inquirer": "3.0.1",
+    "jira-connector": "https://github.com/floralvikings/jira-connector.git#1eea0478ed46762448b219e59a43096cf94935cf",
+    "lodash": "4.17.4",
+    "preferences": "0.2.1",
+    "prompt": "1.0.0"
+  }
+}
