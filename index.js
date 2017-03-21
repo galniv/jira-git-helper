@@ -117,7 +117,7 @@ promise = promise.then((activeSprint) => {
       fields: [ 'key', 'project', 'created', 'priority', 'reporter', 'sprint', 'status', 'summary' ]
     }, (err, searchResults) => {
       if (err) { return callback(err); }
-      console.log(searchResults, 'assignee = "' + prefs.email + '" AND status in (New, "In Progress") AND Sprint = "' + activeSprint.name + '"')
+
       // Error if there are no new issues.
       if (searchResults.total === 0) {
         return callback("No New or In Progress issues found in the current sprint!");
@@ -183,10 +183,9 @@ promise = promise.then((selectedTicket) => {
   return inquirer.prompt({ type: 'input', name: 'branchName', message: 'What would you like to name the branch?', default: selectedTicket.key.toLowerCase() + '-' + _.kebabCase(selectedTicket.summary) }).then((branchNameAnswer) => {
     gitPromise = Promise.fromCallback((callback) => {
       exec('git status', (err, stdout, stderr) => {
-        console.log(stdout.startsWith('On branch master'), stdout);
         if (stdout.startsWith('On branch master')) { return callback(); }
-
-        inquirer.prompt({ type: 'confirm', name: 'moveToMaster', message: 'You are not on the master branch. Move to master before branching?', default: true }).then((answer) => {
+        const currentBranchName = stdout.match(/On branch (\S+)/)[1];
+        inquirer.prompt({ type: 'confirm', name: 'moveToMaster', message: 'You are currently on the ' + currentBranchName + ' branch. Move to master before creating new branch?', default: true }).then((answer) => {
           if (answer.moveToMaster) {
             process.stdout.write('> Checking out master branch... ');
             exec('git checkout master');
