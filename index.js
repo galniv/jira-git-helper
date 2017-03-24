@@ -158,7 +158,7 @@ promise = promise.then((selectorInfo) => {
   });
 });
 
-// Get issues.
+// Get issues and format list of choices.
 promise = promise.then((extraQuerySelector) => {
   return Promise.fromCallback((callback) => {
     jiraClient.search.search({
@@ -205,7 +205,7 @@ promise = promise.then((extraQuerySelector) => {
   });
 });
 
-// Choosen ticket.
+// Choose ticket.
 promise = promise.then((issueChoices) => {
   return inquirer.prompt({ type: 'list', name: 'issue', message: 'Which ticket are you starting to work on?', choices: issueChoices });
 });
