@@ -12,6 +12,8 @@ var prefs = new preferences('jira-git-helper', {
   jiraHost: null,
   email: null,
   agileBoardId: null,
+  useSprints: true,
+  labelForUpcomingWork: null,
   addChangelogEntry: true,
   changelogFilenames: {}
 });
@@ -84,43 +86,90 @@ promise = promise.then(() => {
       }
 
       inquirer.prompt(boardChoices).then((answers) => {
-        callback(null, boards[answers.boardName].id);
+        callback(null, boards[answers.boardName]);
       });
     });
   });
 });
 
 // Get the active sprint.
-promise = promise.then((boardId) => {
-  prefs.agileBoardId = boardId;
+promise = promise.then((board) => {
+  prefs.agileBoardId = board.id;
+  // If the user previously indicated sprints are not being used, move on.
+  if (prefs.useSprints === false) {
+    return null, { boardName: board.name } ;
+  }
   return Promise.fromCallback((callback) => {
-    jiraClient.board.getSprintsForBoard({ boardId: boardId, state: 'active' }, (err, result) => {
-      if (err) { return callback(err); }
+    jiraClient.board.getSprintsForBoard({ boardId: board.id, state: 'active' }, (err, result) => {
+      if (err) {
+        // If the board doesn't support sprints, continue.
+        if (err.errorMessages && err.errorMessages.length > 0 && err.errorMessages[0] === 'The board does not support sprints') {
+          return callback(null, { boardName: board.name });
+        }
+        return callback(err);
+      }
 
-      // Error if there are no active springs (for now).
+      // Continue if there are no active springs.
       if (!result.values || result.values.length === 0) {
-        return callback("No active sprints found for the selected board!");
+        return callback(null, { boardName: board.name });
       }
 
       // Assume there's only a single active sprint per board.
       // TODO: is this always a valid assumption?
-      callback(null, result.values[0]);
+      callback(null, { activeSprint: result.values[0] });
+    });
+  });
+});
+
+// Figure out what (if anything) we can add to our query to narrow the issue list.
+promise = promise.then((selectorInfo) => {
+  // If we're using sprints and there's an active one, use it.
+  if (selectorInfo.activeSprint) {
+    return 'AND Sprint = "' + selectorInfo.activeSprint.name + '"';
+  }
+
+  var extraQuerySelector = 'AND project = ' + selectorInfo.boardName;
+  // If the user previously indicated a label is used to indicate upcoming work, use it.
+  if (prefs.labelForUpcomingWork) {
+    return extraQuerySelector + ' AND labels = "' + prefs.labelForUpcomingWork + '"';
+  }
+
+  // If there is no label, but user was already asked about it, don't ask again.
+  if (prefs.useSprints === false) {
+    return extraQuerySelector;
+  }
+
+  prefs.useSprints = false;
+
+  return inquirer.prompt({ type: 'confirm', name: 'useLabel', message: 'Instead of sprints, do you use a label to indicate upcoming work?', default: true }).then((answer) => {
+    if (!answer.useLabel) {
+      console.log('> Got it, will show all issues.');
+      return extraQuerySelector;
+    }
+
+    return inquirer.prompt({ type: 'input', name: 'nextLabel', message: 'Please enter that label:' }).then((answer) => {
+      if (answer.nextLabel.trim().length == 0) {
+        console.log('> Ok, no label then.');
+        return extraQuerySelector;
+      }
+      prefs.labelForUpcomingWork = answer.nextLabel;
+      return extraQuerySelector + ' AND labels = "' + prefs.labelForUpcomingWork + '"';
     });
   });
 });
 
 // Get issues.
-promise = promise.then((activeSprint) => {
+promise = promise.then((extraQuerySelector) => {
   return Promise.fromCallback((callback) => {
     jiraClient.search.search({
-      jql: 'assignee = "' + prefs.email + '" AND status in (New, "In Progress") AND Sprint = "' + activeSprint.name + '"',
+      jql: 'assignee = "' + prefs.email + '" AND status in (New, "In Progress") ' + extraQuerySelector,
       fields: [ 'key', 'project', 'created', 'priority', 'reporter', 'sprint', 'status', 'summary' ]
     }, (err, searchResults) => {
       if (err) { return callback(err); }
 
       // Error if there are no new issues.
       if (searchResults.total === 0) {
-        return callback("No New or In Progress issues found in the current sprint!");
+        return callback("No New or In Progress issues assigned to you were found in the current sprint!");
       }
 
       var issuesByStatus = _.groupBy(searchResults.issues, 'fields.status.name');
@@ -266,7 +315,7 @@ promise = promise.then(() => {
 
 promise.catch((err) => {
   const errorMessage = err.message || err;
-  if (errorMessage.includes('Unauthorized (401)')) {
+  if (errorMessage && errorMessage.includes && errorMessage.includes('Unauthorized (401)')) {
     console.log('> Authentication error. Please check your credentials and try again.');
   }
   else {
