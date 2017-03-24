@@ -4,7 +4,7 @@ A simple helper CLI for working with JIRA tickets in combination with git.
 
 ### To install
 
-Clone repo, enter directory, and type `npm link`.
+Clone repo, enter directory, type `npm install`, then `npm link`.
 
 ### To run
 
